@@ -1,5 +1,10 @@
-use crate::models::task::Task;
+use crate::models::task::{NewTask, Task};
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use dotenv::dotenv;
+use sqlx::postgres::PgPoolOptions;
+use sqlx::Pool;
+use sqlx::Postgres;
+use std::env;
 
 mod models;
 
@@ -11,15 +16,37 @@ async fn get_tasks() -> impl Responder {
     HttpResponse::Ok().json(vec!["Task 1", "Task 2", "Task 3"])
 }
 
-async fn create_task(task: web::Json<Task>) -> impl Responder {
-    println!("Creating new task: {:?}", task);
-    HttpResponse::Created().json(task.into_inner())
+async fn create_task(pool: web::Data<sqlx::PgPool>, task: web::Json<NewTask>) -> impl Responder {
+    let rec = sqlx::query!(
+        "INSERT INTO tasks (title, description) VALUES ($1, $2) RETURNING id",
+        task.title,
+        task.description
+    )
+    .fetch_one(pool.get_ref())
+    .await
+    .expect("Failed to execute query.");
+
+    HttpResponse::Created().json(Task {
+        id: rec.id as u32,
+        title: task.title.clone(),
+        description: task.description.clone(),
+    })
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| {
+    env_logger::init();
+    dotenv().ok();
+
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
+    let db_pool: Pool<Postgres> = PgPoolOptions::new()
+        .connect(&database_url)
+        .await
+        .expect("Failed to create pool.");
+
+    HttpServer::new(move || {
         App::new()
+            .app_data(web::Data::new(db_pool.clone()))
             .route("/", web::get().to(greet))
             .route("/tasks", web::get().to(get_tasks))
             .route("/tasks", web::post().to(create_task))

@@ -1,6 +1,5 @@
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use crate::models::task::Task;
-
+use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 
 mod models;
 
@@ -9,9 +8,7 @@ async fn greet() -> impl Responder {
 }
 
 async fn get_tasks() -> impl Responder {
-    HttpResponse::Ok().json(vec![
-        "Task 1", "Task 2", "Task 3"
-    ])
+    HttpResponse::Ok().json(vec!["Task 1", "Task 2", "Task 3"])
 }
 
 async fn create_task(task: web::Json<Task>) -> impl Responder {
@@ -27,9 +24,9 @@ async fn main() -> std::io::Result<()> {
             .route("/tasks", web::get().to(get_tasks))
             .route("/tasks", web::post().to(create_task))
     })
-        .bind("127.0.0.1:8080")?
-        .run()
-        .await
+    .bind("127.0.0.1:8080")?
+    .run()
+    .await
 }
 
 // tests

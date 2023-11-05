@@ -1,4 +1,4 @@
-use crate::models::task::{NewTask, Task};
+use crate::models::task::{NewTask, Task, TaskStatus};
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use dotenv::dotenv;
 use sqlx::postgres::PgPoolOptions;
@@ -18,9 +18,10 @@ async fn get_tasks() -> impl Responder {
 
 async fn create_task(pool: web::Data<sqlx::PgPool>, task: web::Json<NewTask>) -> impl Responder {
     let rec = sqlx::query!(
-        "INSERT INTO tasks (title, description) VALUES ($1, $2) RETURNING id",
+        "INSERT INTO tasks (title, description, status) VALUES ($1, $2, $3) RETURNING id",
         task.title,
-        task.description
+        task.description,
+        TaskStatus::Todo.value(),
     )
     .fetch_one(pool.get_ref())
     .await
@@ -30,6 +31,7 @@ async fn create_task(pool: web::Data<sqlx::PgPool>, task: web::Json<NewTask>) ->
         id: rec.id as u32,
         title: task.title.clone(),
         description: task.description.clone(),
+        status: TaskStatus::Todo,
     })
 }
 

@@ -1,6 +1,6 @@
 use crate::models::task::{NewTask, Status, Task};
 use actix_web::web::Data;
-use actix_web::{web, App, HttpResponse, HttpServer, Responder};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use dotenv::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::Pool;
@@ -10,15 +10,17 @@ use std::env;
 
 mod models;
 
+#[get("/")]
 async fn greet() -> impl Responder {
     HttpResponse::Ok().body("Hello!")
 }
 
+#[get("/tasks")]
 async fn get_tasks(pool: Data<Pool<Postgres>>) -> impl Responder {
-    let tasks = find_tasks(&pool).await; // 非同期関数の呼び出しと解決
+    let tasks = find_tasks(&pool).await;
     match tasks {
-        Ok(tasks) => HttpResponse::Ok().json(tasks), // 成功した場合
-        Err(_) => HttpResponse::InternalServerError().finish(), // エラーの場合
+        Ok(tasks) => HttpResponse::Ok().json(tasks),
+        Err(_) => HttpResponse::InternalServerError().finish(),
     }
 }
 
@@ -42,6 +44,7 @@ async fn find_tasks(pool: &sqlx::Pool<sqlx::Postgres>) -> Result<Vec<Task>, sqlx
     Ok(tasks)
 }
 
+#[post("/tasks")]
 async fn create_task(pool: web::Data<sqlx::PgPool>, task: web::Json<NewTask>) -> impl Responder {
     let rec = sqlx::query!(
         "INSERT INTO tasks (title, description, status) VALUES ($1, $2, $3) RETURNING id",
@@ -75,9 +78,9 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(db_pool.clone()))
-            .route("/", web::get().to(greet))
-            .route("/tasks", web::get().to(get_tasks))
-            .route("/tasks", web::post().to(create_task))
+            .service(greet)
+            .service(get_tasks)
+            .service(create_task)
     })
     .bind("127.0.0.1:8080")?
     .run()

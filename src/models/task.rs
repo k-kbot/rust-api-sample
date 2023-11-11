@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use sqlx::Type;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Task {

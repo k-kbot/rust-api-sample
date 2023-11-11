@@ -1,9 +1,11 @@
-use crate::models::task::{NewTask, Task, TaskStatus};
+use crate::models::task::{NewTask, Status, Task};
+use actix_web::web::Data;
 use actix_web::{web, App, HttpResponse, HttpServer, Responder};
 use dotenv::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::Pool;
 use sqlx::Postgres;
+use sqlx::Row;
 use std::env;
 
 mod models;
@@ -12,8 +14,32 @@ async fn greet() -> impl Responder {
     HttpResponse::Ok().body("Hello!")
 }
 
-async fn get_tasks() -> impl Responder {
-    HttpResponse::Ok().json(vec!["Task 1", "Task 2", "Task 3"])
+async fn get_tasks(pool: Data<Pool<Postgres>>) -> impl Responder {
+    let tasks = find_tasks(&pool).await; // 非同期関数の呼び出しと解決
+    match tasks {
+        Ok(tasks) => HttpResponse::Ok().json(tasks), // 成功した場合
+        Err(_) => HttpResponse::InternalServerError().finish(), // エラーの場合
+    }
+}
+
+async fn find_tasks(pool: &sqlx::Pool<sqlx::Postgres>) -> Result<Vec<Task>, sqlx::Error> {
+    let mut tasks = Vec::new();
+
+    let rows = sqlx::query("SELECT id, title, description, status FROM tasks")
+        .fetch_all(pool)
+        .await?;
+
+    for row in rows {
+        let task = Task {
+            id: row.get("id"),
+            title: row.get("title"),
+            description: row.get("description"),
+            status: row.get("status"),
+        };
+        tasks.push(task);
+    }
+
+    Ok(tasks)
 }
 
 async fn create_task(pool: web::Data<sqlx::PgPool>, task: web::Json<NewTask>) -> impl Responder {
@@ -21,17 +47,17 @@ async fn create_task(pool: web::Data<sqlx::PgPool>, task: web::Json<NewTask>) ->
         "INSERT INTO tasks (title, description, status) VALUES ($1, $2, $3) RETURNING id",
         task.title,
         task.description,
-        TaskStatus::Todo.value(),
+        Status::Todo.value(),
     )
     .fetch_one(pool.get_ref())
     .await
     .expect("Failed to execute query.");
 
     HttpResponse::Created().json(Task {
-        id: rec.id as u32,
+        id: rec.id,
         title: task.title.clone(),
         description: task.description.clone(),
-        status: TaskStatus::Todo,
+        status: Status::Todo,
     })
 }
 
